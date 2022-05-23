@@ -1,4 +1,4 @@
-import {readdir, readFile} from "fs/promises";
+import {mkdir, open, readdir, readFile} from "fs/promises";
 import path, { dirname } from "path";
 
 const dir = process.cwd();
@@ -29,6 +29,9 @@ async function getTemplateConfig(customPath?: string): Promise<object> {
 
 async function init() {
   const config = await getTemplateConfig(process.argv[2]);
+  
+  await createCrudFile(config);
+  
   const dirs = await readdir(path.join(dir, '../src'));
 
   if(!(dirs instanceof Array)) {
@@ -53,6 +56,43 @@ async function init() {
     console.error("Metronome was terminated with failure.");
   }
 })();
+
+async function createCrudFile(config: any): Promise<string> {
+  const templateCrudFile = await open(path.join(dir, 'src/template/_redux/template-crud.js'), 'r+');
+
+  const newReduxPath = `src/${config['name']}`;
+  const newReduxDir = await mkdir(path.join(dir, `src/${config['name']}`));
+  const newCrudFile = await open(path.join(dir, newReduxPath, config['name'] + ".js"), 'w+');
+
+  const readStream = templateCrudFile.createReadStream();
+  const writeStream = newCrudFile.createWriteStream();
+
+  const readWrite = await new Promise<string>((resolve, reject) => {
+    readStream.on("data", (chunk) => {
+      const line = chunk.toString();
+
+      const newLine = line.replace(/@_@template_name@_@/g, config['name']).replace(/@~@template_name@~@/g, capitalizeFirstLetter((config['name'])));
+
+      writeStream.write(newLine);
+    });
+
+    readStream.on("end", () => {
+      templateCrudFile.close();
+      newCrudFile.close();
+      
+      writeStream.end();
+
+      resolve(path.join(dir, newReduxPath, config['name'] + ".js"));
+    });
+  });
+
+  return readWrite;
+}
+
+function capitalizeFirstLetter(string: string): string {
+  return string.charAt(0).toUpperCase() + string.substring(1);
+}
+
 
 
 
