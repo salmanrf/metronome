@@ -1,0 +1,21 @@
+{
+  "name": "test",
+  "base_route": "test",
+  "schema": {
+    "uuid": {
+      "primary": true,
+      "type": "string",
+      "filterable": false
+    },
+    "name": {
+      "type": "string",
+      "filterable": true
+    },
+    "trx_date": {
+      "type": "data",
+      "is_array": false,
+      "filterable": true,
+      "filter_by_ranged": true
+    }
+  }
+}
