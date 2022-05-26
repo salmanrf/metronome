@@ -1,9 +1,10 @@
 import {mkdir, open, readdir, readFile} from "fs/promises";
 import path, { dirname } from "path";
+import { FilePathOptionList } from "./interfaces/file-path-list";
 
 const dir = process.cwd();
 
-async function getTemplateConfig(customPath?: string): Promise<object> {
+async function getTemplateConfig(customPath?: string): Promise<any> {
   let configPath = path.join(dir, customPath ?? "template.config.json");
 
   try {
@@ -25,9 +26,30 @@ async function getTemplateConfig(customPath?: string): Promise<object> {
 async function init() {
   const config = await getTemplateConfig(process.argv[2]);
   
-  await createCrudFile(config);
-  await createSliceFile(config);
+  const newReduxPath = path.join(dir, `src/${config['name']}/_redux`);
+  const newReduxDir = await mkdir(newReduxPath, {recursive: true});
   
+  const filePaths: FilePathOptionList = [
+    {
+      read_from_path: "src/template/_redux/template-crud.js",
+      write_to_path: `${newReduxPath}/${config['name']}-crud.js`,
+    },
+    {
+      read_from_path: "src/template/_redux/template-slice.js",
+      write_to_path: `${newReduxPath}/${config['name']}-slice.js`,
+    },
+    {
+      read_from_path: "src/template/_redux/template-action.js",
+      write_to_path: `${newReduxPath}/${config['name']}-action.js`,
+    }
+  ];
+  
+  const newReduxFiles = await Promise.all(
+    filePaths.map(
+      ({read_from_path, write_to_path}) => generateTemplatedFile(read_from_path, write_to_path, config)
+    )
+  );
+
   const dirs = await readdir(path.join(dir, '../src'));
 
   if(!(dirs instanceof Array)) {
@@ -42,82 +64,83 @@ async function init() {
   }
 }
 
-async function createCrudFile(config: any): Promise<string> {
-  const templateCrudFile = await open(path.join(dir, 'src/template/_redux/template-crud.js'), 'r+');
-
-  const newReduxPath = `src/${config['name']}/_redux`;
-  const newReduxDir = await mkdir(path.join(dir, newReduxPath), {recursive: true});
-  const newCrudFile = await open(path.join(dir, newReduxPath, config['name'] + "-crud.js"), 'w+');
-
-  const readStream = templateCrudFile.createReadStream();
-  const writeStream = newCrudFile.createWriteStream();
-
-  const readWrite = await new Promise<string>((resolve, reject) => {
-    readStream.on("data", (chunk) => {
-      const line = chunk.toString();
-
-      const newLine = line.replace(/@_@template_name@_@/g, config['name']).replace(/@~@template_name@~@/g, capitalizeFirstLetter((config['name'])));
-
-      writeStream.write(newLine);
-    });
-
-    readStream.on("end", () => {
-      templateCrudFile.close();
-      newCrudFile.close();
-      
-      writeStream.end();
-
-      resolve(path.join(dir, newReduxPath, config['name'] + "-crud.js"));
-    });
-  });
-
-  return readWrite;
-}
-
-async function createSliceFile(config: any): Promise<string> {
-  const templateSliceFile = await open(path.join(dir, 'src/template/_redux/template-slice.js'), 'r+');
-
-  const newReduxPath = `src/${config['name']}/_redux`;
-  const newSliceFile = await open(path.join(dir, newReduxPath, config['name'] + "-slice.js"), 'w+');
-
-  const readStream = templateSliceFile.createReadStream();
-  const writeStream = newSliceFile.createWriteStream();
-
-  const readWrite = await new Promise<string>((resolve, reject) => {
-    readStream.on("data", (chunk) => {
-      const line = chunk.toString();
-
-      const newLine = line.replace(/@_@template_name@_@/g, config['name']).replace(/@~@template_name@~@/g, capitalizeFirstLetter((config['name'])));
-
-      writeStream.write(newLine);
-    });
-
-    readStream.on("end", () => {
-      templateSliceFile.close();
-      newSliceFile.close();
-      
-      writeStream.end();
-
-      resolve(path.join(dir, newReduxPath, config['name'] + "-slice.js"));
-    });
-  });
-
-  return readWrite;
-}
-
 function capitalizeFirstLetter(string: string): string {
   return string.charAt(0).toUpperCase() + string.substring(1);
 }
 
-(async () => {
-  try {
-    await init();
+// (async () => {
+//   try {
+//     await init();
   
-    console.log('Template generated successfully');
-  } catch(error) {
-    console.error(error);
-    console.error("Metronome was terminated with failure.");
+//     console.log('Template generated successfully');
+//   } catch(error) {
+//     console.error(error);
+//     console.error("Metronome was terminated with failure.");
+//   }
+// })();
+
+async function generateTemplatedFile(read_from: string, write_to: string, config: any) {
+  const readFrom = await open(read_from, 'r+');
+
+  const writeTo = await open(write_to, 'w+');
+
+  const readStream = readFrom.createReadStream();
+  const writeStream = writeTo.createWriteStream();
+
+  const readWrite = await new Promise<string>((resolve, reject) => {
+    readStream.on("data", (chunk) => {
+      const line = chunk.toString();
+
+      const newLine = line.replace(/@_@template_name@_@/g, config['name']).replace(/@~@template_name@~@/g, capitalizeFirstLetter((config['name'])));
+
+      writeStream.write(newLine);
+    });
+
+    readStream.on("end", () => {
+      readFrom.close();
+      writeTo.close();
+      
+      writeStream.end();
+
+      resolve(write_to);
+    });
+  });
+
+  return readWrite;
+}
+
+async function traverse(root_read_path: string, root_write_path: string, config:any) {
+  const readFileOrDirNames = await readdir(root_read_path);
+
+  if(readFileOrDirNames.length === 0) {
+    return;
   }
+  
+  const newWriteDir = await mkdir(root_write_path);
+  
+  const readDirectories = readFileOrDirNames.filter((name) => !/\w+\.\w+/.test(name));
+  const readFileNames = readFileOrDirNames.filter((name) => /\w+\.\w+/.test(name));
+
+  const newFiles = await Promise.all(
+      readFileNames.map((readFrom) => 
+        generateTemplatedFile(
+          root_read_path + `/${readFrom}`, 
+          root_write_path + `/${readFrom.replace(/template/g, config['name']).replace(/Template/g, config['name'])}`, config
+        )
+      )
+  );
+
+  readDirectories.forEach(async (currdir) => {
+    traverse(path.join(root_read_path, currdir), path.join(root_write_path, currdir), config);
+  });
+}
+
+(async () => {
+  const config = await getTemplateConfig(process.argv[2]);
+  const rootRead = path.join(dir, '/src/template');
+  const rootWrite = path.join(dir, `/src/${config['name']}`);
+
+  await traverse(rootRead, rootWrite, config);
 })();
 
 
