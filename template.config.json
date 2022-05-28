@@ -12,10 +12,34 @@
       "filterable": true
     },
     "trx_date": {
-      "type": "data",
+      "type": "date",
       "is_array": false,
       "filterable": true,
-      "filter_by_ranged": true
+      "filter_by_range": true
+    },
+    "user_uuid": {
+      "type": "string",
+      "reference_to": "user",
+      "filter_by_select": true,
+      "filterable": true
+    },
+    "owner_uuid": {
+      "type": "string",
+      "reference_to": "user",
+      "filter_by_select": true,
+      "filterable": true
+    },
+    "partner_uuid": {
+      "type": "string",
+      "reference_to": "user",
+      "filter_by_select": true,
+      "filterable": true
+    },
+    "admin_uuid": {
+      "type": "string",
+      "reference_to": "user",
+      "filter_by_select": true,
+      "filterable": true
     }
   }
 }
