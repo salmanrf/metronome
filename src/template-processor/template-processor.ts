@@ -55,6 +55,10 @@ function processLine(line: string, config: any): string {
     return generateFormOptionLoaders(line, config);
   }
 
+  if(/@template_entity_prepare_filter@/.test(line)) {
+    return genereateFilterPreparator(line, config);
+  }
+
   const input = 
     (line + '\r')
       .replace(/@_@template_name@_@/g, config['name'])
@@ -213,4 +217,26 @@ function generateFormOptionLoaders(line: string, config: any): string {
   });
   
   return initialOptionLoaders.replace(/@indent@/g, `  ${lineIndentation}`);
+}
+
+function genereateFilterPreparator(line: string, config: any): string {
+    let initialFilter = ``;
+
+    const schema = config['schema'];
+
+    if(!schema) {
+      throw new Error("Invalid config format, unable to determine schema.");
+    }
+    
+    const filterableFields = Object.keys(config['schema']).filter((key) => config['schema'][key]['filterable']);
+
+    const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
+
+    initialFilter += `${lineIndentation}const { ${filterableFields.reduce((prev, field, index) => prev + (index === filterableFields.length - 1 ? field : field + ', '), '')} } = values;\n\n`;
+
+    filterableFields.forEach((field) => {
+      initialFilter += `${lineIndentation}filter.${field} = ${field} ?? "";\n`;
+    });
+
+    return initialFilter;
 }

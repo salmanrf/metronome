@@ -31,7 +31,7 @@ export const GenOptionLoaderTemplate = `function genOptionLoader(fetcher, mapper
 }`
 
 export const OptionLoaderTemplate = `function search@~reference_name~@(params) {
-@indent@return new Promise((resolve) => resolve({items: []}));
+@indent@return new Promise((resolve) => resolve({data: {data: {item: []}}}));
 }`
 
 export const SelectFieldTemplate = `@indent@<div className="col-lg-4">
