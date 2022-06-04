@@ -18,6 +18,22 @@ export const FieldTemplate = `@indent@<div className="col-lg-4">
 @indent@</div>
 `;
 
+export const GenOptionLoaderTemplate = `function genOptionLoader(fetcher, mapper) {
+@indent@return (inputValue, callback) => {
+@indent@  fetcher(inputValue).then(({data: {data}}) => {
+@indent@    const {items = []} = data ?? {}
+@indent@
+@indent@    const options = items.map(mapper);
+@indent@    
+@indent@    callback(options)
+@indent@  });
+@indent@}
+}`
+
+export const OptionLoaderTemplate = `function search@~reference_name~@(params) {
+@indent@return new Promise((resolve) => resolve({items: []}));
+}`
+
 export const SelectFieldTemplate = `@indent@<div className="col-lg-4">
 @indent@  <label htmlFor="@field_name@">Cari @~reference_name~@</label>
 @indent@  <AsyncSelect 

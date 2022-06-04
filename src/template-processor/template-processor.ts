@@ -1,7 +1,8 @@
 import { open } from "fs/promises";
 import * as readline from "node:readline";
+import { FIELD_TYPE } from "../common/helpers/field-types.helper";
 import { capitalizeFirstLetter } from "../common/utils/string.utils";
-import { FieldTemplate, FormGroupTemplate, SelectFieldTemplate } from "../template-placeholder/field-filter.template";
+import { FieldTemplate, FormGroupTemplate, GenOptionLoaderTemplate, OptionLoaderTemplate, SelectFieldTemplate } from "../template-placeholder/field-filter.template";
 
 export async function generateTemplatedFile(read_from: string, write_to: string, config: any) {
   const readFrom = await open(read_from, 'r+');
@@ -44,6 +45,14 @@ function processLine(line: string, config: any): string {
 
   if(/@template_entity_filter_forms@/.test(line)) {
     return generateEntityFilterFields(line, config);
+  }
+
+  if(/@template_entity_schema@/.test(line)) {
+    return generateEntityFormSchema(line, config);
+  }
+
+  if(/@template_form_option_loaders@/.test(line)) {
+    return generateFormOptionLoaders(line, config);
   }
 
   const input = 
@@ -155,4 +164,53 @@ function generateEntityFilterFields(line: string, config: any): string {
   }
 
   return initialFormFields;
+}
+
+function generateEntityFormSchema(line: string, config: any): string {
+  let initialSchemaFields = ``;
+
+  const schema = config['schema'];
+
+  if(!schema) {
+    throw new Error("Invalid config format, unable to determine schema.");
+  }
+  
+  const schemaFields = Object.keys(config['schema']).filter((key) => !config['schema'][key]['primary']);
+
+  const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
+
+  schemaFields.forEach((key: string) => {
+    const type = FIELD_TYPE[schema[key]['type']] ?? 'string';
+    
+    initialSchemaFields += `${lineIndentation}${key}: Yup.${type}().${schema[key]['nullable'] ? 'optional()' : 'required("")'},\n`;
+  });
+
+  return initialSchemaFields;
+}
+
+function generateFormOptionLoaders(line: string, config: any): string {
+  let initialOptionLoaders = GenOptionLoaderTemplate + '\n\n';
+  
+  const schema = config['schema'];
+
+  if(!schema) {
+    throw new Error("Invalid config format, unable to determine schema.");
+  }
+
+  const referenceFields = Object.keys(schema).filter((key) => schema[key]['reference_to']);
+
+  const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
+  
+  referenceFields.forEach((key) => {
+    const reference_to = schema[key]['reference_to'];
+
+    initialOptionLoaders += 
+      OptionLoaderTemplate
+        .replace(/@reference_name@/g, reference_to)
+        .replace(/@~reference_name~@/g, capitalizeFirstLetter(reference_to))
+
+    initialOptionLoaders += '\n'
+  });
+  
+  return initialOptionLoaders.replace(/@indent@/g, `  ${lineIndentation}`);
 }

@@ -5,39 +5,32 @@
     "uuid": {
       "primary": true,
       "type": "string",
+      "nullable": false,
       "filterable": false
     },
     "name": {
       "type": "string",
+      "nullable": false,
       "filterable": true
     },
     "trx_date": {
       "type": "date",
+      "nullable": true,
       "is_array": false,
       "filterable": true,
       "filter_by_range": true
     },
     "user_uuid": {
       "type": "string",
+      "nullable": true,
       "reference_to": "user",
       "filter_by_select": true,
       "filterable": true
     },
     "owner_uuid": {
       "type": "string",
-      "reference_to": "user",
-      "filter_by_select": true,
-      "filterable": true
-    },
-    "partner_uuid": {
-      "type": "string",
-      "reference_to": "user",
-      "filter_by_select": true,
-      "filterable": true
-    },
-    "admin_uuid": {
-      "type": "string",
-      "reference_to": "user",
+      "nullable": true,
+      "reference_to": "owner",
       "filter_by_select": true,
       "filterable": true
     }
