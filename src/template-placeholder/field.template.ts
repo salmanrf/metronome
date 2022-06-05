@@ -48,3 +48,12 @@ export const SelectFieldTemplate = `@indent@<div className="col-lg-4">
 @indent@  <ErrorMessage name="@field_name@" />
 @indent@</div>
 `;
+
+// ? Placeholder for @template_reference_options_preparations@
+export const OptionLoaderPreparation = `@indent@(async () => {
+@indent@  const [res] = await promiseTuplify(Promise.all([
+@indent@    @template_fetch_options@
+@indent@  ]));
+@indent@   
+@indent@  @template_options_setup@
+@indent@})();`

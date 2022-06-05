@@ -2,7 +2,7 @@ import { open } from "fs/promises";
 import * as readline from "node:readline";
 import { FIELD_TYPE } from "../common/helpers/field-types.helper";
 import { capitalizeFirstLetter } from "../common/utils/string.utils";
-import { FieldTemplate, FormGroupTemplate, GenOptionLoaderTemplate, OptionLoaderTemplate, SelectFieldTemplate } from "../template-placeholder/field-filter.template";
+import { FieldTemplate, FormGroupTemplate, GenOptionLoaderTemplate, OptionLoaderPreparation, OptionLoaderTemplate, SelectFieldTemplate } from "../template-placeholder/field.template";
 
 export async function generateTemplatedFile(read_from: string, write_to: string, config: any) {
   const readFrom = await open(read_from, 'r+');
@@ -56,7 +56,15 @@ function processLine(line: string, config: any): string {
   }
 
   if(/@template_entity_prepare_filter@/.test(line)) {
-    return genereateFilterPreparator(line, config);
+    return genereateFilterPreparation(line, config);
+  }
+
+  if(/@template_reference_options_preparations@/.test(line)) {
+    return generateRefOptionsPreparation(line, config);
+  }
+
+  if(/@template_reference_options@/.test(line)) {
+    return generateReferenceOptionsStates(line, config);
   }
 
   const input = 
@@ -219,7 +227,7 @@ function generateFormOptionLoaders(line: string, config: any): string {
   return initialOptionLoaders.replace(/@indent@/g, `  ${lineIndentation}`);
 }
 
-function genereateFilterPreparator(line: string, config: any): string {
+function genereateFilterPreparation(line: string, config: any): string {
     let initialFilter = ``;
 
     const schema = config['schema'];
@@ -239,4 +247,78 @@ function genereateFilterPreparator(line: string, config: any): string {
     });
 
     return initialFilter;
+}
+
+function generateReferenceOptionsStates(line: string, config: any): string {
+  const schema = config['schema'];
+
+  if(!schema) {
+    throw new Error("Invalid config format, unable to determine schema.");
+  }
+  
+  const referenceFields = Object.keys(schema).filter((key) => schema[key]['reference_to']);
+  
+  const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
+
+  const referenceOptionsStates = referenceFields.reduce((prev, field, index) => {
+    const reference_to = schema[field]['reference_to'];
+
+    return prev + `@indent@const [${reference_to}Options, set${capitalizeFirstLetter(reference_to)}Options] = useState([]);\n`
+  }, '')
+  
+  console.log('ref', referenceOptionsStates);
+  
+  
+  return referenceOptionsStates
+    .replace(/@indent@/g, `${lineIndentation}`);
+}
+
+function generateRefOptionsPreparation(line: string, config: any): string {
+  let initialTemplate = OptionLoaderPreparation;
+
+  const schema = config['schema'];
+
+  if(!schema) {
+    throw new Error("Invalid config format, unable to determine schema.");
+  }
+  
+  const referenceFields = Object.keys(schema).filter((key) => schema[key]['reference_to']);
+  
+  const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
+
+  let optionsFetch = '';
+
+  referenceFields.forEach((field, index) => {
+    const reference_to = schema[field]['reference_to'];
+
+    optionsFetch += `${index === 0 ? '' : '@indent@    '}search${capitalizeFirstLetter(reference_to)}(),\n`
+  });
+  
+  let optionsSetup = '';
+
+  optionsSetup += `const [${referenceFields.reduce((prev, field, index) => prev + (index === referenceFields.length - 1 ? schema[field]['reference_to'] + 'Res' : schema[field]['reference_to'] + 'Res' + ', '), '')}] = res;\n`;
+  
+  referenceFields.forEach((field, index) => {
+    const reference_to = schema[field]['reference_to'];
+
+    optionsSetup += `@indent@  const {data: ${reference_to}Data = {}} = ${reference_to}Res ?? {};\n`;
+    optionsSetup += `@indent@  const {data: {items: ${reference_to}Items = []}} = ${reference_to}Data ?? {};\n`;
+  });
+
+  optionsSetup += '\n';
+  
+  referenceFields.forEach((field, index) => {
+    const reference_to = schema[field]['reference_to'];
+
+    optionsSetup += `@indent@  set${capitalizeFirstLetter(reference_to)}Options(${reference_to}Items.map(({uuid, name}) => ({label: name, value: uuid})));\n`;
+  });
+  
+  initialTemplate = 
+    initialTemplate
+      .replace(/@template_fetch_options@/g, optionsFetch)
+      .replace(/@template_options_setup@/g, optionsSetup)
+      .replace(/@indent@/g, `${lineIndentation}`)
+  
+  
+  return initialTemplate;
 }
