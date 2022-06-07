@@ -1,10 +1,12 @@
 import { open } from "fs/promises";
 import * as readline from "node:readline";
 import { FIELD_TYPE } from "../common/helpers/field-types.helper";
+import { ConfigSchema, SchemaField } from "../common/interfaces/config-schema.interace";
+import { DICTIONARY } from "../common/interfaces/generics.interface";
 import { capitalizeFirstLetter } from "../common/utils/string.utils";
-import { FieldTemplate, FormGroupTemplate, GenOptionLoaderTemplate, OptionLoaderPreparation, OptionLoaderTemplate, SelectFieldTemplate } from "../template-placeholder/field.template";
+import { FieldTemplate, FilterFieldTemplate, FormGroupTemplate, GenOptionLoaderTemplate, OptionLoaderPreparation, OptionLoaderTemplate, FilterSelectFieldTemplate, SelectFieldTemplate } from "../template-placeholder/field.template";
 
-export async function generateTemplatedFile(read_from: string, write_to: string, config: any) {
+export async function generateTemplatedFile(read_from: string, write_to: string, config: ConfigSchema) {
   const readFrom = await open(read_from, 'r+');
 
   const writeTo = await open(write_to, 'w+');
@@ -34,7 +36,7 @@ export async function generateTemplatedFile(read_from: string, write_to: string,
   return readWrite;
 }
 
-function processLine(line: string, config: any): string {
+function processLine(line: string, config: ConfigSchema): string {
   if(/@template_entity_filter@/.test(line)) {
     return generateEntityInitialFilter(config);
   }
@@ -67,6 +69,10 @@ function processLine(line: string, config: any): string {
     return generateReferenceOptionsStates(line, config);
   }
 
+  if(/@template_entity_form_fields@/.test(line)) {
+    return generateEntityFormFields(line, config);
+  }
+
   const input = 
     (line + '\r')
       .replace(/@_@template_name@_@/g, config['name'])
@@ -78,7 +84,7 @@ function processLine(line: string, config: any): string {
   return output;
 }
 
-function generateEntityInitialFilter(config: any): string {
+function generateEntityInitialFilter(config: ConfigSchema): string {
   let entityInitialFilterString = '';
   
   const schemaFields = Object.keys(config['schema']);
@@ -107,7 +113,7 @@ function generateEntityInitialFilter(config: any): string {
   return entityInitialFilterString;
 }
 
-function generateEntityInitialValue(config: any): string {
+function generateEntityInitialValue(config: ConfigSchema): string {
   let entityInitialValueString = '';
   
   const schemaFields = Object.keys(config['schema']);
@@ -131,54 +137,67 @@ function generateEntityInitialValue(config: any): string {
   return entityInitialValueString;
 }
 
-function generateEntityFilterFields(line: string, config: any): string {
+function generateEntityFilterFields(line: string, config: ConfigSchema): string {
   let initialFormFields = ``;
 
-  const filterableFields = Object.keys(config['schema']).filter((key) => config['schema'][key]['filterable']);
+  const schema = config['schema'];
+  const filterableFields = Object.keys(schema).reduce<DICTIONARY<SchemaField>>((newSchemaObject, field) => {
+    const currentField = schema[field];
 
+    if(schema[field]['filter_by_range']) {
+      const rangedField = {...currentField};
+      
+      return {...newSchemaObject, [`${field}_start`]: rangedField, [`${field}_end`]: rangedField};
+    }
+
+    return {...newSchemaObject, [field]: currentField}
+  }, {});
+  
   let currGroupIndex = 0;
 
   const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
   
-  for(let i = 0; i < filterableFields.length; i++) {
-    const currentField = config['schema'][filterableFields[i]];
+  const filterableFieldNames = Object.keys(filterableFields).filter((key) => filterableFields[key]['filterable']);
+  
+  filterableFieldNames.forEach((field, index) => {
+    const currentField = filterableFields[field];
 
     if(currGroupIndex === 0) {
       initialFormFields += `${lineIndentation}<div className="form-group row">\n`;
     }
 
-    let currentFieldTemplate = FieldTemplate;
-    let reference_to = filterableFields[i];
+    let currentFieldTemplate = FilterFieldTemplate;
+    let reference_to = field;
 
     if(currentField['filter_by_select'] && currentField['reference_to']) {
       reference_to = currentField['reference_to'];
     }
 
     if(currentField['filter_by_select']) {
-      currentFieldTemplate = SelectFieldTemplate;
+      currentFieldTemplate = FilterSelectFieldTemplate;
     }
 
     initialFormFields += 
       currentFieldTemplate
         .replace(/@indent@/g, `  ${lineIndentation}`)
-        .replace(/@field_name@/g, filterableFields[i])
-        .replace(/@~field_name~@/g, capitalizeFirstLetter(filterableFields[i]))
+        .replace(/@field_name@/g, field)
+        .replace(/@~field_name~@/g, capitalizeFirstLetter(field))
         .replace(/@reference_name@/g, reference_to)
         .replace(/@~reference_name~@/g, capitalizeFirstLetter(reference_to))
         
 
-    if(currGroupIndex === 2 || i === filterableFields.length - 1) {
+    if(currGroupIndex === 2 || index === filterableFieldNames.length - 1) {
       currGroupIndex = 0;
       initialFormFields += `${lineIndentation}</div>\n`;
     } else {
       currGroupIndex++
     }
-  }
+  });
 
   return initialFormFields;
 }
 
-function generateEntityFormSchema(line: string, config: any): string {
+function generateEntityFormSchema(line: string, config: ConfigSchema): string {
   let initialSchemaFields = ``;
 
   const schema = config['schema'];
@@ -200,7 +219,7 @@ function generateEntityFormSchema(line: string, config: any): string {
   return initialSchemaFields;
 }
 
-function generateFormOptionLoaders(line: string, config: any): string {
+function generateFormOptionLoaders(line: string, config: ConfigSchema): string {
   let initialOptionLoaders = GenOptionLoaderTemplate + '\n\n';
   
   const schema = config['schema'];
@@ -227,7 +246,7 @@ function generateFormOptionLoaders(line: string, config: any): string {
   return initialOptionLoaders.replace(/@indent@/g, `  ${lineIndentation}`);
 }
 
-function genereateFilterPreparation(line: string, config: any): string {
+function genereateFilterPreparation(line: string, config: ConfigSchema): string {
     let initialFilter = ``;
 
     const schema = config['schema'];
@@ -236,7 +255,17 @@ function genereateFilterPreparation(line: string, config: any): string {
       throw new Error("Invalid config format, unable to determine schema.");
     }
     
-    const filterableFields = Object.keys(config['schema']).filter((key) => config['schema'][key]['filterable']);
+    const filterableFields = Object.keys(config['schema']).reduce<string[]>((fields, key) => {
+      if(!schema[key]['filterable']) {
+        return fields;
+      }
+
+      if(schema[key]['filter_by_range']) {
+        return [...fields, `${key}_start`, `${key}_end`];
+      }
+
+      return [...fields, key];
+    }, []);
 
     const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
 
@@ -249,7 +278,7 @@ function genereateFilterPreparation(line: string, config: any): string {
     return initialFilter;
 }
 
-function generateReferenceOptionsStates(line: string, config: any): string {
+function generateReferenceOptionsStates(line: string, config: ConfigSchema): string {
   const schema = config['schema'];
 
   if(!schema) {
@@ -266,14 +295,11 @@ function generateReferenceOptionsStates(line: string, config: any): string {
     return prev + `@indent@const [${reference_to}Options, set${capitalizeFirstLetter(reference_to)}Options] = useState([]);\n`
   }, '')
   
-  console.log('ref', referenceOptionsStates);
-  
-  
   return referenceOptionsStates
     .replace(/@indent@/g, `${lineIndentation}`);
 }
 
-function generateRefOptionsPreparation(line: string, config: any): string {
+function generateRefOptionsPreparation(line: string, config: ConfigSchema): string {
   let initialTemplate = OptionLoaderPreparation;
 
   const schema = config['schema'];
@@ -321,4 +347,51 @@ function generateRefOptionsPreparation(line: string, config: any): string {
   
   
   return initialTemplate;
+}
+
+function generateEntityFormFields(line: string, config: ConfigSchema): string {
+  let initialFormFields = ``;
+
+  const filterableFields = Object.keys(config['schema']).filter((key) => config['schema'][key]['filterable']);
+
+  let currGroupIndex = 0;
+
+  const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
+  
+  filterableFields.forEach((field, index) => {
+    const currentField = config['schema'][field];
+
+    if(currGroupIndex === 0) {
+      initialFormFields += `${lineIndentation}<div className="form-group row">\n`;
+    }
+
+    let currentFieldTemplate = FieldTemplate;
+    let reference_to = field;
+
+    if(currentField['filter_by_select'] && currentField['reference_to']) {
+      reference_to = currentField['reference_to'];
+    }
+
+    if(currentField['filter_by_select']) {
+      currentFieldTemplate = SelectFieldTemplate;
+    }
+
+    initialFormFields += 
+      currentFieldTemplate
+        .replace(/@indent@/g, `  ${lineIndentation}`)
+        .replace(/@field_name@/g, field)
+        .replace(/@~field_name~@/g, capitalizeFirstLetter(field))
+        .replace(/@reference_name@/g, reference_to)
+        .replace(/@~reference_name~@/g, capitalizeFirstLetter(reference_to))
+        
+
+    if(currGroupIndex === 2 || index === filterableFields.length - 1) {
+      currGroupIndex = 0;
+      initialFormFields += `${lineIndentation}</div>\n`;
+    } else {
+      currGroupIndex++
+    }
+  });
+
+  return initialFormFields;
 }

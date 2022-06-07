@@ -1,7 +1,7 @@
 import {mkdir, open, readdir, readFile} from "fs/promises";
 import path, { dirname } from "path";
 import { capitalizeFirstLetter } from "./common/utils/string.utils";
-import { FilePathOptionList } from "./common/interfaces/file-path-list";
+import { FilePathOptionList } from "./common/interfaces/file-path-list.interface";
 import * as readline from 'readline';
 import { generateTemplatedFile } from "./template-processor/template-processor";
 
