@@ -1,6 +1,14 @@
 {
-  "name": "test",
-  "base_route": "test",
+  "name": "project",
+  "base_route": "project",
+  "sub_schemas": {
+    "document": {
+
+    },
+    "report": {
+
+    },
+  },
   "schema": {
     "uuid": {
       "primary": true,
@@ -13,26 +21,50 @@
       "nullable": false,
       "filterable": true
     },
-    "trx_date": {
+    "start_date": {
       "type": "date",
-      "nullable": true,
-      "is_array": false,
+      "nullable": false,
       "filterable": true,
       "filter_by_range": true
     },
-    "user_uuid": {
+    "end_date": {
+      "type": "date",
+      "nullable": false,
+      "filterable": true,
+      "filter_by_range": true
+    },
+    "description": {
       "type": "string",
-      "nullable": true,
-      "reference_to": "user",
-      "filter_by_select": true,
+      "nullable": false,
       "filterable": true
     },
-    "owner_uuid": {
+    "waqf_asset_uuid": {
       "type": "string",
-      "nullable": true,
-      "reference_to": "owner",
+      "nullable": false,
+      "filterable": true,
       "filter_by_select": true,
-      "filterable": true
+      "reference_to": "waqf_asset"
+    },
+    "waqf_project_category_uuid": {
+      "type": "string",
+      "nullable": false,
+      "filterable": true,
+      "filter_by_select": true,
+      "reference_to": "waqf_project_category"
+    },
+    "waqf_partner_uuid": {
+      "type": "string",
+      "nullable": false,
+      "filterable": true,
+      "filter_by_select": true,
+      "reference_to": "waqf_partner"
+    },
+    "waqf_utilization_uuid": {
+      "type": "string",
+      "nullable": false,
+      "filterable": true,
+      "filter_by_select": true,
+      "reference_to": "waqf_utilization"
     }
   }
 }

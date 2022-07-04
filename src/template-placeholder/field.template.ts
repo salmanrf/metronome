@@ -83,3 +83,16 @@ export const OptionLoaderPreparation = `@indent@(async () => {
 @indent@     
 @indent@  @template_options_setup@
 @indent@})();`
+
+// {
+    //   dataField: "partner_name",
+    //   text: "Mitra",
+    //   sort: true,
+    // },
+
+export const TableColumnsTemplate = 
+`@indent@{
+@indent@  dataField: "@field@",
+@indent@  text: "@field_name@",
+@indent@},
+`

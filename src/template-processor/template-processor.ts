@@ -3,8 +3,8 @@ import * as readline from "node:readline";
 import { FIELD_TYPE } from "../common/helpers/field-types.helper";
 import { ConfigSchema, SchemaField } from "../common/interfaces/config-schema.interace";
 import { DICTIONARY } from "../common/interfaces/generics.interface";
-import { capitalizeFirstLetter } from "../common/utils/string.utils";
-import { FieldTemplate, FilterFieldTemplate, FormGroupTemplate, GenOptionLoaderTemplate, OptionLoaderPreparation, OptionLoaderTemplate, FilterSelectFieldTemplate, SelectFieldTemplate } from "../template-placeholder/field.template";
+import { capitalizeFirstLetter, wordify } from "../common/utils/string.utils";
+import { FieldTemplate, FilterFieldTemplate, FormGroupTemplate, GenOptionLoaderTemplate, OptionLoaderPreparation, OptionLoaderTemplate, FilterSelectFieldTemplate, SelectFieldTemplate, TableColumnsTemplate } from "../template-placeholder/field.template";
 
 export async function generateTemplatedFile(read_from: string, write_to: string, config: ConfigSchema) {
   const readFrom = await open(read_from, 'r+');
@@ -58,7 +58,7 @@ function processLine(line: string, config: ConfigSchema): string {
   }
 
   if(/@template_entity_prepare_filter@/.test(line)) {
-    return genereateFilterPreparation(line, config);
+    return generateFilterPreparation(line, config);
   }
 
   if(/@template_reference_options_preparations@/.test(line)) {
@@ -73,13 +73,21 @@ function processLine(line: string, config: ConfigSchema): string {
     return generateEntityFormFields(line, config);
   }
 
+  if(/@template_entity_columns@/.test(line)) {
+    return generateEntityTableColumns(line, config);
+  }
+
+  const {schema} = config;
+  const primaryField = Object.keys(schema).find((field) => schema[field]["primary"]);
+  
   const input = 
     (line + '\r')
       .replace(/@_@template_name@_@/g, config['name'])
+      .replace(/@template_entity_primary_field@/g, primaryField ?? "uuid")
       .replace(/@~@template_name@~@/g, capitalizeFirstLetter((config['name'])))
       .replace(/@_@template_route@_@/g, config['base_route'])
   
-  let output = input;
+  const output = input;
 
   return output;
 }
@@ -246,7 +254,7 @@ function generateFormOptionLoaders(line: string, config: ConfigSchema): string {
   return initialOptionLoaders.replace(/@indent@/g, `  ${lineIndentation}`);
 }
 
-function genereateFilterPreparation(line: string, config: ConfigSchema): string {
+function generateFilterPreparation(line: string, config: ConfigSchema): string {
     let initialFilter = ``;
 
     const schema = config['schema'];
@@ -392,6 +400,26 @@ function generateEntityFormFields(line: string, config: ConfigSchema): string {
       currGroupIndex++
     }
   });
-
   return initialFormFields;
+}
+
+function generateEntityTableColumns(line: string, config: ConfigSchema): string {
+  let initialColumns = ``;
+
+  const {schema} = config;
+  const nonPrimaryFields = Object.keys(schema).filter((key) => !schema[key]['primary']);
+    
+  const lineIndentation = ' '.repeat([...line.matchAll(/\s/g)].length);
+
+  const template = TableColumnsTemplate;
+
+  nonPrimaryFields.forEach((field) => {
+    const field_name = wordify(field.replace(/_uuid/g, ""), "_")
+    
+    initialColumns += template.replace(/@field@/g, field).replace(/@field_name@/g, field_name)
+  });
+
+  initialColumns = initialColumns.replace(/@indent@/g, lineIndentation)
+
+  return initialColumns;
 }
